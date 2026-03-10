@@ -2,3 +2,5 @@
 # Windows: venv\Scripts\activate
 # Mac/Linux: source venv/bin/activate
 
+untuk menjalankan server backend
+uvicorn main:app --reload
