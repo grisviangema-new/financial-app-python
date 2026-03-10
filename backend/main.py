@@ -1,15 +1,25 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from pydantic import BaseModel
+
 import models, database
 import traceback
+from schemas import ReportSchema, BreakdownSchema
+import yfinance as yf
 
 app = FastAPI()
 
 #Membuat semua tabel di database jika belum ada
 database.Base.metadata.create_all(bind=database.engine)
+
+# Fungsi untuk mendapatkan kurs USD/IDR terbaru
+def get_exchange_rate():
+    try:
+        ticker = yf.Ticker("IDR=X")
+        data = ticker.history(period="1d")
+        return data['Close'].iloc[-1]
+    except:
+        return 15700  # Fallback jika API gagal
 
 # --- MIDDLEWARE CORS ---
 # Penting agar React (port 5173) bisa mengirim data ke Python (port 8000)
@@ -21,22 +31,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- SCHEMA DATA (Validasi Input) ---
-class BreakdownSchema(BaseModel):
-    type: str
-    label: str
-    amount: int
 
-class ReportSchema(BaseModel):
-    ticker: str
-    year: int
-    period: str
-    revenue: int
-    breakdowns: List[BreakdownSchema]
 
 # --- ENDPOINT SIMPAN DATA ---
 @app.post("/reports")
 def create_report(report_data: ReportSchema, db: Session = Depends(database.get_db)):
+    kurs = get_exchange_rate()
+
+    # Logic Pembulatan & Konversi
+    # Jika input dalam IDR, simpan asli dan versi konversi USD
+    # Kita asumsikan user menginput angka asli (misal: 1.000.000.000)
+    
+    revenue_idr = report_data.revenue
+    if report_data.currency == "IDR":
+        # Bulatkan ke Miliar (dibagi 10^9)
+        val_display = round(revenue_idr / 1_000_000_000, 2) 
+        unit = "Miliar IDR"
+    else:
+        # Jika USD, bulatkan ke Juta (dibagi 10^6)
+        val_display = round(revenue_idr / 1_000_000, 2)
+        unit = "Juta USD"
+        
     try:
         # 1. Cek apakah perusahaan sudah ada, jika belum buat baru
         company = db.query(models.Company).filter(models.Company.ticker == report_data.ticker).first()

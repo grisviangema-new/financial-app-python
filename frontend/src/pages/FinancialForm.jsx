@@ -8,6 +8,7 @@ const FinancialForm = () => {
     year: new Date().getFullYear(),
     period: 'FY',
     revenue: 0,
+    currency: 'IDR', // Default IDR
     breakdowns: [] // Untuk detail rincian sektor/geografis
   });
 
@@ -65,6 +66,33 @@ const FinancialForm = () => {
           </select>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+        <div>
+            <label className="block text-sm font-semibold text-slate-600">Mata Uang Laporan</label>
+            <select 
+            className="w-full mt-1 p-3 border rounded-xl"
+            value={formData.currency}
+            onChange={(e) => setFormData({...formData, currency: e.target.value})}
+            >
+            <option value="IDR">Rupiah (IDR)</option>
+            <option value="USD">US Dollar (USD)</option>
+            </select>
+        </div>
+        <div>
+            <label className="block text-sm font-semibold text-slate-600">
+            Total Pendapatan ({formData.currency === 'IDR' ? 'Input Angka Asli' : 'Input USD'})
+            </label>
+            <input 
+            type="number" 
+            className="w-full mt-1 p-3 border rounded-xl"
+            onChange={(e) => setFormData({...formData, revenue: e.target.value})}
+            />
+            <p className="text-xs text-slate-500 mt-1 italic">
+            *Sistem akan otomatis membulatkan ke {formData.currency === 'IDR' ? 'Miliar' : 'Juta'} di Dashboard.
+            </p>
+        </div>
+        </div>
 
       <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-300">
         <div className="flex justify-between items-center mb-4">
