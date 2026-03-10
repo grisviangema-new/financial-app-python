@@ -4,8 +4,12 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 import models, database
+import traceback
 
 app = FastAPI()
+
+#Membuat semua tabel di database jika belum ada
+database.Base.metadata.create_all(bind=database.engine)
 
 # --- MIDDLEWARE CORS ---
 # Penting agar React (port 5173) bisa mengirim data ke Python (port 8000)
@@ -68,4 +72,5 @@ def create_report(report_data: ReportSchema, db: Session = Depends(database.get_
 
     except Exception as e:
         db.rollback() # Batalkan jika ada error
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

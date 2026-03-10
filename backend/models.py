@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey, Enum, Float
+from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey, Enum, Float, Date, DateTime, func
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -7,6 +7,7 @@ class Company(Base):
     id = Column(Integer, primary_key=True, index=True)
     ticker = Column(String(10), unique=True, index=True)
     name = Column(String(255))
+    createdAt = Column(DateTime(timezone=True), server_default=func.now())
     reports = relationship("FinancialReport", back_populates="owner")
 
 class FinancialReport(Base):
