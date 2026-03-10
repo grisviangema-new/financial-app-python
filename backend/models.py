@@ -1,13 +1,17 @@
 from sqlalchemy import Column, Integer, String, BigInteger, ForeignKey, Enum, Float, Date, DateTime, func
 from sqlalchemy.orm import relationship
 from database import Base
+from datetime import datetime
 
 class Company(Base):
     __tablename__ = "companies"
     id = Column(Integer, primary_key=True, index=True)
-    ticker = Column(String(10), unique=True, index=True)
-    name = Column(String(255))
-    createdAt = Column(DateTime(timezone=True), server_default=func.now())
+    ticker = Column(String(10), unique=True, index=True) # Kolom 'Kode'
+    name = Column(String(100))                          # Nama Perusahaan
+    listing_date = Column(Date)                    # Tanggal Pencatatan
+    shares = Column(BigInteger)                          # Jumlah Saham
+    listing_board = Column(String(50))                   # Papan Pencatatan
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     reports = relationship("FinancialReport", back_populates="owner")
 
 class FinancialReport(Base):
@@ -17,7 +21,7 @@ class FinancialReport(Base):
     year = Column(Integer)
     period = Column(String(10)) # Q1, FY, dll
     revenue = Column(BigInteger)
-    
+    currency = Column(String(3)) # IDR or USD
     owner = relationship("Company", back_populates="reports")
     breakdowns = relationship("FinancialBreakdown", back_populates="report")
 

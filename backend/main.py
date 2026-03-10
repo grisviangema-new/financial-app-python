@@ -1,11 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from schemas import ReportSchema, BreakdownSchema
+from datetime import datetime
+from io import BytesIO
 
+import pandas as pd
 import models, database
 import traceback
-from schemas import ReportSchema, BreakdownSchema
 import yfinance as yf
+import dateparser
+
 
 app = FastAPI()
 
@@ -20,6 +25,14 @@ def get_exchange_rate():
         return data['Close'].iloc[-1]
     except:
         return 15700  # Fallback jika API gagal
+
+# Fungsi pembantu untuk membersihkan angka saham
+def clean_numeric(value):
+    if pd.isna(value): return 0
+    # Hilangkan titik jika terbaca sebagai string (misal: "1.924.688.333" -> "1924688333")
+    if isinstance(value, str):
+        value = value.replace('.', '').replace(',', '')
+    return int(float(value))
 
 # --- MIDDLEWARE CORS ---
 # Penting agar React (port 5173) bisa mengirim data ke Python (port 8000)
@@ -87,5 +100,58 @@ def create_report(report_data: ReportSchema, db: Session = Depends(database.get_
 
     except Exception as e:
         db.rollback() # Batalkan jika ada error
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+@app.post("/upload-companies")
+async def upload_companies(file: UploadFile = File(...), db: Session = Depends(database.get_db)):
+    try:
+        contents = await file.read()
+        # Membaca excel, pastikan kolom dibaca apa adanya
+        df = pd.read_excel(BytesIO(contents))
+
+        # Standarisasi Nama Kolom (antisipasi spasi berlebih)
+        df.columns = [c.strip() for c in df.columns]
+
+        for index, row in df.iterrows():
+            ticker = str(row['Kode']).strip()
+
+            # --- LOGIKA PARSING TANGGAL ---
+            raw_date = str(row['Tanggal Pencatatan'])
+            # dateparser mendukung multibahasa (termasuk 'Des' untuk Desember)
+            parsed_date = dateparser.parse(raw_date, languages=['id'])
+            
+            # Jika parsing gagal, gunakan None atau tanggal default
+            final_date = parsed_date.date() if parsed_date else None
+            
+            # Membersihkan data saham
+            raw_saham = clean_numeric(row['Saham'])
+
+            # Update atau Insert logic
+            existing = db.query(models.Company).filter(models.Company.ticker == ticker).first()
+            
+            if existing:
+                existing.name = row['Nama Perusahaan']
+                existing.shares = raw_saham
+                existing.listing_board = row['Papan Pencatatan']
+                existing.listing_date = final_date
+                existing.last_updated = datetime.now()
+            else:
+                new_item = models.Company(
+                    ticker=ticker,
+                    name=row['Nama Perusahaan'],
+                    listing_date=final_date,
+                    shares=raw_saham,
+                    listing_board=row['Papan Pencatatan'],
+                    last_updated=datetime.now()
+                )
+                db.add(new_item)
+        
+        db.commit()
+        return {"message": f"Berhasil memproses {len(df)} emiten."}
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Detail Error: {str(e)}") # Cek ini di terminal uvicorn Anda
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
